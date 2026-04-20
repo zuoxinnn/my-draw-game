@@ -320,6 +320,11 @@
         socket.on('chat_message', (data) => {
             const m = document.getElementById('messages');
             m.innerHTML += `<div style="margin-bottom:5px;"><b style="color:${data.color}">${data.sender}:</b> ${data.text}</div>`;
+            // 【新增】：限制最多只顯示 50 則訊息
+            while (m.childElementCount > 50) {
+                m.removeChild(m.firstElementChild); // 刪除最上面（最舊）的那一則
+            }
+            
             m.scrollTop = m.scrollHeight;
         });
 
