@@ -1,89 +1,156 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>你畫我猜 (隱藏題目版)</title>
+    <title>即時你畫我猜 Pro</title>
     <style>
-        body { font-family: sans-serif; text-align: center; margin-top: 50px; background-color: #f4f4f9;}
-        #game-board { display: none; max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);}
-        #chat-box { height: 250px; border: 1px solid #ccc; overflow-y: scroll; margin-bottom: 10px; padding: 10px; text-align: left;}
-        #status-bar { font-size: 20px; font-weight: bold; margin-bottom: 15px; color: #333; padding: 10px; background: #e0f7fa; border-radius: 5px;}
-        input, button { padding: 10px; font-size: 16px; margin: 5px;}
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #f0f2f5; }
+        #game-container { display: flex; gap: 20px; margin-top: 20px; }
+        #canvas-area { background: white; border-radius: 8px; padding: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        canvas { border: 1px solid #ddd; cursor: crosshair; touch-action: none; background: #fff; }
+        #tools { margin-top: 10px; display: none; }
+        .color-btn { width: 25px; height: 25px; border: none; cursor: pointer; margin-right: 5px; border-radius: 50%; }
+        #status { font-size: 24px; font-weight: bold; margin: 10px; color: #1a73e8; }
+        #chat-area { width: 300px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        #messages { height: 400px; overflow-y: auto; border-bottom: 1px solid #eee; margin-bottom: 10px; }
+        #word-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; color: white; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+        .word-btn { padding: 15px 30px; margin: 10px; font-size: 20px; cursor: pointer; border-radius: 8px; border: none; background: #4CAF50; color: white; }
     </style>
 </head>
 <body>
 
     <div id="login">
-        <h2>輸入你的暱稱來加入遊戲</h2>
-        <input type="text" id="username" placeholder="你的名字">
-        <button onclick="joinGame()">進入房間</button>
+        <input type="text" id="username" placeholder="暱稱">
+        <button onclick="join()">加入遊戲</button>
     </div>
 
-    <div id="game-board">
-        <div id="status-bar">等待遊戲開始...</div>
-        <button onclick="startRound()" style="background: #ff9800; color: white; border: none; cursor: pointer;">隨機抽題 / 下一回合</button>
-        
-        <h3>在線玩家：<span id="player-count">0</span> 人</h3>
-        
-        <div id="chat-box"></div>
-        <input type="text" id="message-input" placeholder="輸入猜測答案或聊天...">
-        <button onclick="sendMessage()">發送</button>
+    <div id="status">等待開始...</div>
+    <div id="timer">時間: --</div>
+
+    <div id="game-container" style="display:none;">
+        <div id="canvas-area">
+            <canvas id="canvas" width="600" height="450"></canvas>
+            <div id="tools">
+                <button onclick="clearCanvas()">清除全部</button>
+                筆刷大小: <input type="range" id="size" min="1" max="20" value="5">
+                顏色: 
+                <button class="color-btn" style="background:black" onclick="setColor('black')"></button>
+                <button class="color-btn" style="background:red" onclick="setColor('red')"></button>
+                <button class="color-btn" style="background:blue" onclick="setColor('blue')"></button>
+                <button class="color-btn" style="background:green" onclick="setColor('green')"></button>
+                <button class="color-btn" style="background:yellow" onclick="setColor('yellow')"></button>
+                <button onclick="setColor('white')">橡皮擦</button>
+            </div>
+            <button id="start-btn" onclick="socket.emit('start_game')">開始遊戲</button>
+        </div>
+
+        <div id="chat-area">
+            <div id="messages"></div>
+            <input type="text" id="chat-input" placeholder="輸入答案...">
+        </div>
+    </div>
+
+    <div id="word-overlay">
+        <h2>請選擇一個題目 (10秒)</h2>
+        <div id="word-options"></div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        let myName = "";
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+        let isDrawer = false;
+        let currentColor = 'black';
 
-        function joinGame() {
-            myName = document.getElementById('username').value;
-            if (myName) {
-                socket.emit('join', myName);
+        function join() {
+            const name = document.getElementById('username').value;
+            if(name) {
+                socket.emit('join', name);
                 document.getElementById('login').style.display = 'none';
-                document.getElementById('game-board').style.display = 'block';
+                document.getElementById('game-container').style.display = 'flex';
             }
         }
 
-        function startRound() {
-            socket.emit('start_round');
+        // 畫圖邏輯
+        canvas.addEventListener('mousedown', () => drawing = true);
+        canvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
+        canvas.addEventListener('mousemove', draw);
+
+        function draw(e) {
+            if (!drawing || !isDrawer) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const size = document.getElementById('size').value;
+
+            const data = { x, y, color: currentColor, size };
+            socket.emit('draw_data', data);
+            paint(data);
         }
 
-        function sendMessage() {
-            const input = document.getElementById('message-input');
-            if (input.value.trim() !== "") {
-                socket.emit('send_message', input.value);
-                input.value = '';
-            }
+        function paint(data) {
+            ctx.lineWidth = data.size;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = data.color;
+            ctx.lineTo(data.x, data.y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(data.x, data.y);
         }
 
-        // 監聽鍵盤 Enter 發送
-        document.getElementById('message-input').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') sendMessage();
+        function setColor(c) { currentColor = c; }
+        function clearCanvas() { socket.emit('clear_canvas'); }
+
+        // Socket 事件監聽
+        socket.on('draw_data', (data) => paint(data));
+        socket.on('clear_canvas', () => ctx.clearRect(0, 0, canvas.width, canvas.height));
+
+        socket.on('select_word_options', (options) => {
+            document.getElementById('word-overlay').style.display = 'flex';
+            const container = document.getElementById('word-options');
+            container.innerHTML = '';
+            options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'word-btn';
+                btn.innerText = opt;
+                btn.onclick = () => {
+                    socket.emit('pick_word', opt);
+                    document.getElementById('word-overlay').style.display = 'none';
+                };
+                container.appendChild(btn);
+            });
         });
 
-        // 接收伺服器更新
-        socket.on('update_players', (players) => {
-            document.getElementById('player-count').innerText = players.length;
+        socket.on('round_playing', (data) => {
+            isDrawer = (socket.id === data.drawerId);
+            document.getElementById('word-overlay').style.display = 'none';
+            document.getElementById('tools').style.display = isDrawer ? 'block' : 'none';
+            document.getElementById('status').innerText = isDrawer ? "正在出題..." : "觀察並猜題！";
         });
 
-        // 遊戲開始，設定狀態列
-        socket.on('round_started', (data) => {
-            document.getElementById('status-bar').innerText = `👀 ${data.drawerName} 正在看題目，請準備猜題！`;
-            document.getElementById('status-bar').style.background = "#e0f7fa";
-        });
-
-        // 【最關鍵的地方】只有出題者會收到這個事件
         socket.on('your_word', (word) => {
-            document.getElementById('status-bar').innerText = `🤫 你是出題者！你要提示的題目是：「${word}」`;
-            document.getElementById('status-bar').style.background = "#ffcc80";
+            document.getElementById('status').innerText = `你的題目：${word}`;
         });
 
-        // 接收對話與系統判定
-        socket.on('chat_message', (data) => {
-            const chatBox = document.getElementById('chat-box');
-            chatBox.innerHTML += `<div style="color: ${data.color}"><strong>${data.sender}:</strong> ${data.text}</div>`;
-            chatBox.scrollTop = chatBox.scrollHeight;
+        socket.on('timer_tick', (t) => {
+            document.getElementById('timer').innerText = `剩餘時間: ${t}s`;
         });
+
+        socket.on('chat_message', (data) => {
+            const msgDiv = document.getElementById('messages');
+            msgDiv.innerHTML += `<div style="color:${data.color}"><b>${data.sender}:</b> ${data.text}</div>`;
+            msgDiv.scrollTop = msgDiv.scrollHeight;
+        });
+
+        // 聊天輸入
+        document.getElementById('chat-input').onkeypress = (e) => {
+            if(e.key === 'Enter') {
+                socket.emit('send_message', e.target.value);
+                e.target.value = '';
+            }
+        };
     </script>
 </body>
 </html>

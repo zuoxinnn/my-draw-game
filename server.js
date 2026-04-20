@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -7,83 +6,118 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// 👇 👇 👇 你的專屬題庫填寫區 👇 👇 👇
-const questionBank = [
-    "蘋果", 
-    "皮卡丘", 
-    "殭屍", 
-    "實驗室", 
-    "小咪", 
-    "丹瑜", 
-    "外星人"
-];
-// 👆 👆 👆 你可以在這裡隨意新增或修改字串 👆 👆 👆
+const questionBank = ["蘋果", "皮卡丘", "殭屍", "實驗室", "小咪", "丹瑜", "外星人", "珍奶", "鋼琴"];
 
 let players = [];
-let currentWord = "";
-let currentDrawerId = null;
+let gameState = {
+    status: 'WAITING', // WAITING, CHOOSING, PLAYING
+    currentWord: "",
+    currentDrawerId: null,
+    timer: 0,
+    interval: null
+};
 
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
-});
+app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'));
 
 io.on('connection', (socket) => {
-    console.log('新玩家加入:', socket.id);
-    
-    // 玩家設定暱稱並加入房間
     socket.on('join', (name) => {
-        players.push({ id: socket.id, name: name });
+        players.push({ id: socket.id, name: name, score: 0 });
         io.emit('update_players', players);
     });
 
-    // 任何人按下「開始/下一回合」
-    socket.on('start_round', () => {
-        if (players.length < 2) {
-            socket.emit('chat_message', { sender: '系統', text: '至少需要 2 人才能開始遊戲！', color: 'red' });
-            return;
+    // 處理繪圖數據廣播
+    socket.on('draw_data', (data) => {
+        // 只允許出題者廣播畫布數據
+        if (socket.id === gameState.currentDrawerId) {
+            socket.broadcast.emit('draw_data', data);
         }
-
-        // 隨機抽題目與出題者
-        currentWord = questionBank[Math.floor(Math.random() * questionBank.length)];
-        const drawerIndex = Math.floor(Math.random() * players.length);
-        currentDrawerId = players[drawerIndex].id;
-        const drawerName = players[drawerIndex].name;
-
-        // 廣播給所有人遊戲開始的訊息
-        io.emit('round_started', { drawerName: drawerName });
-
-        // 【核心邏輯】只把題目發給出題者！
-        io.to(currentDrawerId).emit('your_word', currentWord);
     });
 
-    // 處理聊天與猜題
+    // 處理清除畫布
+    socket.on('clear_canvas', () => {
+        if (socket.id === gameState.currentDrawerId) io.emit('clear_canvas');
+    });
+
+    // 開始新回合
+    socket.on('start_game', () => startNewRound());
+
+    // 出題者選題
+    socket.on('pick_word', (word) => {
+        if (socket.id === gameState.currentDrawerId && gameState.status === 'CHOOSING') {
+            gameState.currentWord = word;
+            startDrawingPhase();
+        }
+    });
+
     socket.on('send_message', (text) => {
         const player = players.find(p => p.id === socket.id);
-        if (!player) return;
-
-        // 檢查是否猜中 (出題者不能自己猜)
-        if (socket.id !== currentDrawerId && text === currentWord) {
-            io.emit('chat_message', { 
-                sender: '系統', 
-                text: `🎉 恭喜 ${player.name} 猜對了！答案是「${currentWord}」`, 
-                color: 'green' 
-            });
-            currentWord = ""; // 重置題目防止重複猜
-            currentDrawerId = null;
+        if (gameState.status === 'PLAYING' && socket.id !== gameState.currentDrawerId && text === gameState.currentWord) {
+            io.emit('chat_message', { sender: '系統', text: `🎉 ${player.name} 猜對了！答案是「${gameState.currentWord}」`, color: 'green' });
+            endRound();
         } else {
-            // 一般對話
-            io.emit('chat_message', { sender: player.name, text: text, color: 'black' });
+            io.emit('chat_message', { sender: player.name || '未知', text: text, color: 'black' });
         }
     });
 
-    // 玩家離開
     socket.on('disconnect', () => {
         players = players.filter(p => p.id !== socket.id);
         io.emit('update_players', players);
     });
 });
 
+function startNewRound() {
+    if (players.length < 2) return;
+    clearInterval(gameState.interval);
+    
+    // 隨機選人與選兩題
+    const drawer = players[Math.floor(Math.random() * players.length)];
+    gameState.currentDrawerId = drawer.id;
+    gameState.status = 'CHOOSING';
+    const options = [
+        questionBank[Math.floor(Math.random() * questionBank.length)],
+        questionBank[Math.floor(Math.random() * questionBank.length)]
+    ];
+
+    io.emit('clear_canvas');
+    io.emit('round_choosing', { drawerName: drawer.name });
+    io.to(drawer.id).emit('select_word_options', options);
+
+    // 10秒內沒選就強迫開始
+    let timeLeft = 10;
+    gameState.interval = setInterval(() => {
+        timeLeft--;
+        if (timeLeft <= 0) {
+            gameState.currentWord = options[0];
+            startDrawingPhase();
+        }
+    }, 1000);
+}
+
+function startDrawingPhase() {
+    clearInterval(gameState.interval);
+    gameState.status = 'PLAYING';
+    gameState.timer = 180;
+    
+    io.emit('round_playing', { drawerId: gameState.currentDrawerId, timer: gameState.timer });
+    io.to(gameState.currentDrawerId).emit('your_word', gameState.currentWord);
+
+    gameState.interval = setInterval(() => {
+        gameState.timer--;
+        io.emit('timer_tick', gameState.timer);
+        if (gameState.timer <= 0) {
+            io.emit('chat_message', { sender: '系統', text: `時間到！答案是「${gameState.currentWord}」`, color: 'red' });
+            endRound();
+        }
+    }, 1000);
+}
+
+function endRound() {
+    clearInterval(gameState.interval);
+    gameState.status = 'WAITING';
+    io.emit('round_ended');
+    // 5秒後自動下一關
+    setTimeout(() => startNewRound(), 5000);
+}
+
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`伺服器運行中，連接埠：${PORT}`);
-});
+server.listen(PORT, () => console.log(`Running on port ${PORT}`));
