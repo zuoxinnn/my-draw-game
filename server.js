@@ -6,7 +6,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-const questionBank = ["蘋果", "皮卡丘", "殭屍", "實驗室", "小咪", "丹瑜", "外星人", "珍奶", "鋼琴", "貓咪", "巧克力", "長頸鹿"];
+const questionBank = ["寶寶丁", "皮卡丘", "伊布", "喝珍奶的二毛", "差不多娃娃", "土龍弟弟", "皮可西", "烏波", "長尾怪手", "蟲電寶", "小磁怪", "呆殼獸", "迷布莉姆", "貓頭夜鷹", "燈籠魚", "快龍", "巨炭山", "鐵頭殼", "夠讚狗"];
 const idColors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FFB833', '#33FFF6', '#8D33FF', '#FF3385'];
 
 let rooms = {}; // 存放所有房間資料
