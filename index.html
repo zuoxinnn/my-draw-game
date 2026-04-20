@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>你畫我猜 (隱藏題目版)</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; margin-top: 50px; background-color: #f4f4f9;}
+        #game-board { display: none; max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);}
+        #chat-box { height: 250px; border: 1px solid #ccc; overflow-y: scroll; margin-bottom: 10px; padding: 10px; text-align: left;}
+        #status-bar { font-size: 20px; font-weight: bold; margin-bottom: 15px; color: #333; padding: 10px; background: #e0f7fa; border-radius: 5px;}
+        input, button { padding: 10px; font-size: 16px; margin: 5px;}
+    </style>
+</head>
+<body>
+
+    <div id="login">
+        <h2>輸入你的暱稱來加入遊戲</h2>
+        <input type="text" id="username" placeholder="你的名字">
+        <button onclick="joinGame()">進入房間</button>
+    </div>
+
+    <div id="game-board">
+        <div id="status-bar">等待遊戲開始...</div>
+        <button onclick="startRound()" style="background: #ff9800; color: white; border: none; cursor: pointer;">隨機抽題 / 下一回合</button>
+        
+        <h3>在線玩家：<span id="player-count">0</span> 人</h3>
+        
+        <div id="chat-box"></div>
+        <input type="text" id="message-input" placeholder="輸入猜測答案或聊天...">
+        <button onclick="sendMessage()">發送</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let myName = "";
+
+        function joinGame() {
+            myName = document.getElementById('username').value;
+            if (myName) {
+                socket.emit('join', myName);
+                document.getElementById('login').style.display = 'none';
+                document.getElementById('game-board').style.display = 'block';
+            }
+        }
+
+        function startRound() {
+            socket.emit('start_round');
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            if (input.value.trim() !== "") {
+                socket.emit('send_message', input.value);
+                input.value = '';
+            }
+        }
+
+        // 監聽鍵盤 Enter 發送
+        document.getElementById('message-input').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // 接收伺服器更新
+        socket.on('update_players', (players) => {
+            document.getElementById('player-count').innerText = players.length;
+        });
+
+        // 遊戲開始，設定狀態列
+        socket.on('round_started', (data) => {
+            document.getElementById('status-bar').innerText = `👀 ${data.drawerName} 正在看題目，請準備猜題！`;
+            document.getElementById('status-bar').style.background = "#e0f7fa";
+        });
+
+        // 【最關鍵的地方】只有出題者會收到這個事件
+        socket.on('your_word', (word) => {
+            document.getElementById('status-bar').innerText = `🤫 你是出題者！你要提示的題目是：「${word}」`;
+            document.getElementById('status-bar').style.background = "#ffcc80";
+        });
+
+        // 接收對話與系統判定
+        socket.on('chat_message', (data) => {
+            const chatBox = document.getElementById('chat-box');
+            chatBox.innerHTML += `<div style="color: ${data.color}"><strong>${data.sender}:</strong> ${data.text}</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+    </script>
+</body>
+</html>
