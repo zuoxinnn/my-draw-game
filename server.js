@@ -6,13 +6,16 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-const questionBank = ["蘋果", "皮卡丘", "殭屍", "實驗室", "小咪", "丹瑜", "外星人", "珍奶", "鋼琴"];
+const questionBank = ["蘋果", "皮卡丘", "殭屍", "實驗室", "小咪", "丹瑜", "外星人", "珍珠奶茶", "鋼琴", "貓咪", "巧克力", "漢堡", "腳踏車", "長頸鹿"];
+const idColors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FFB833', '#33FFF6', '#8D33FF', '#FF3385'];
 
 let players = [];
 let gameState = {
-    status: 'WAITING', // WAITING, CHOOSING, PLAYING
+    status: 'LOBBY', // LOBBY, CHOOSING, PLAYING, GAMEOVER
     currentWord: "",
     currentDrawerId: null,
+    roundCount: 0,
+    maxRounds: 10,
     timer: 0,
     interval: null
 };
@@ -21,27 +24,27 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'));
 
 io.on('connection', (socket) => {
     socket.on('join', (name) => {
-        players.push({ id: socket.id, name: name, score: 0 });
+        const playerColor = idColors[players.length % idColors.length];
+        players.push({ id: socket.id, name: name, color: playerColor, score: 0 });
         io.emit('update_players', players);
     });
 
-    // 處理繪圖數據廣播
-    socket.on('draw_data', (data) => {
-        // 只允許出題者廣播畫布數據
-        if (socket.id === gameState.currentDrawerId) {
-            socket.broadcast.emit('draw_data', data);
+    socket.on('start_game', () => {
+        if (players.length >= 2 && gameState.status === 'LOBBY') {
+            gameState.roundCount = 0;
+            players.forEach(p => p.score = 0); // 重置分數
+            startNewRound();
         }
     });
 
-    // 處理清除畫布
+    socket.on('draw_data', (data) => {
+        if (socket.id === gameState.currentDrawerId) socket.broadcast.emit('draw_data', data);
+    });
+
     socket.on('clear_canvas', () => {
         if (socket.id === gameState.currentDrawerId) io.emit('clear_canvas');
     });
 
-    // 開始新回合
-    socket.on('start_game', () => startNewRound());
-
-    // 出題者選題
     socket.on('pick_word', (word) => {
         if (socket.id === gameState.currentDrawerId && gameState.status === 'CHOOSING') {
             gameState.currentWord = word;
@@ -51,11 +54,19 @@ io.on('connection', (socket) => {
 
     socket.on('send_message', (text) => {
         const player = players.find(p => p.id === socket.id);
+        if (!player) return;
+
         if (gameState.status === 'PLAYING' && socket.id !== gameState.currentDrawerId && text === gameState.currentWord) {
+            // 計分邏輯：猜對者 +100，出題者 +50
+            player.score += 100;
+            const drawer = players.find(p => p.id === gameState.currentDrawerId);
+            if (drawer) drawer.score += 50;
+
             io.emit('chat_message', { sender: '系統', text: `🎉 ${player.name} 猜對了！答案是「${gameState.currentWord}」`, color: 'green' });
+            io.emit('update_players', players); // 更新排行榜
             endRound();
         } else {
-            io.emit('chat_message', { sender: player.name || '未知', text: text, color: 'black' });
+            io.emit('chat_message', { sender: player.name, text: text, color: 'black' });
         }
     });
 
@@ -66,27 +77,37 @@ io.on('connection', (socket) => {
 });
 
 function startNewRound() {
-    if (players.length < 2) return;
+    gameState.roundCount++;
+    if (gameState.roundCount > gameState.maxRounds) {
+        endGame();
+        return;
+    }
+
     clearInterval(gameState.interval);
-    
-    // 隨機選人與選兩題
-    const drawer = players[Math.floor(Math.random() * players.length)];
-    gameState.currentDrawerId = drawer.id;
     gameState.status = 'CHOOSING';
+    
+    // 輪流出題邏輯：按進入順序輪流
+    const drawer = players[(gameState.roundCount - 1) % players.length];
+    gameState.currentDrawerId = drawer.id;
+
     const options = [
         questionBank[Math.floor(Math.random() * questionBank.length)],
         questionBank[Math.floor(Math.random() * questionBank.length)]
     ];
 
     io.emit('clear_canvas');
-    io.emit('round_choosing', { drawerName: drawer.name });
+    io.emit('round_start', { 
+        drawerName: drawer.name, 
+        round: gameState.roundCount, 
+        maxRounds: gameState.maxRounds 
+    });
     io.to(drawer.id).emit('select_word_options', options);
 
-    // 10秒內沒選就強迫開始
-    let timeLeft = 10;
+    // 10秒選題倒數
+    let pickTime = 10;
     gameState.interval = setInterval(() => {
-        timeLeft--;
-        if (timeLeft <= 0) {
+        pickTime--;
+        if (pickTime <= 0) {
             gameState.currentWord = options[0];
             startDrawingPhase();
         }
@@ -114,10 +135,21 @@ function startDrawingPhase() {
 function endRound() {
     clearInterval(gameState.interval);
     gameState.status = 'WAITING';
-    io.emit('round_ended');
-    // 5秒後自動下一關
-    setTimeout(() => startNewRound(), 5000);
+    setTimeout(() => startNewRound(), 3000);
+}
+
+function endGame() {
+    gameState.status = 'GAMEOVER';
+    // 排序找出前三名
+    const winners = [...players].sort((a, b) => b.score - a.score).slice(0, 3);
+    io.emit('game_over', winners);
+    
+    // 10秒後回到大廳
+    setTimeout(() => {
+        gameState.status = 'LOBBY';
+        io.emit('return_to_lobby');
+    }, 10000);
 }
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
