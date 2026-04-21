@@ -45,7 +45,7 @@
 <body>
 
     <div id="lobby-view" class="panel">
-        <h2>🥞WafflePancake你畫我猜🧇</h2>
+        <h2>你畫我猜之寶可夢2026版</h2>
         <input type="text" id="username" placeholder="輸入你的暱稱" style="padding:10px; width:80%; margin-bottom:15px; border-radius:5px; border:1px solid #ccc;">
         <br>
         <button class="btn" onclick="createRoom()">創造房間</button>
@@ -320,8 +320,8 @@
         socket.on('chat_message', (data) => {
             const m = document.getElementById('messages');
             m.innerHTML += `<div style="margin-bottom:5px;"><b style="color:${data.color}">${data.sender}:</b> ${data.text}</div>`;
-            // 【新增】：限制最多只顯示 50 則訊息
-            while (m.childElementCount > 50) {
+            // 【新增】：限制最多只顯示 15 則訊息
+            while (m.childElementCount > 15) {
                 m.removeChild(m.firstElementChild); // 刪除最上面（最舊）的那一則
             }
             
