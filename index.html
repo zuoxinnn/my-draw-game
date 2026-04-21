@@ -45,7 +45,7 @@
 <body>
 
     <div id="lobby-view" class="panel">
-        <h2>你畫我猜之寶可夢2026版</h2>
+        <h2>寶可夢你畫我猜之2026版</h2>
         <input type="text" id="username" placeholder="輸入你的暱稱" style="padding:10px; width:80%; margin-bottom:15px; border-radius:5px; border:1px solid #ccc;">
         <br>
         <button class="btn" onclick="createRoom()">創造房間</button>
@@ -78,6 +78,10 @@
                 <div id="result-overlay" class="overlay">
                     <h2>🏆 遊戲結算</h2>
                     <div id="winners-list"></div>
+                    <div style="margin-top: 20px;">
+                        <button class="btn" onclick="continueGame()">繼續遊戲</button>
+                        <button class="btn btn-danger" onclick="location.reload()">退出房間</button>
+                    </div>
                 </div>
 
                 <div id="tools">
@@ -113,7 +117,7 @@
         let drawing = false, currentColor = 'black', currentMode = 'pen'; // 'pen' 或 'fill'
 
         // 初始化顏色盤
-        const palette = ['#FF0000', '#FFC0CB', '#FFA500', '#FFFF00', '#008000', '#90EE90', '#0000FF', '#ADD8E6', '#800080', '#808080', '#000000', '#FFFFFF'];
+        const palette = ['#FF0000', '#FFC0CB', '#FFA500', '#FECB3E', '#008000', '#90EE90', '#0000FF', '#ADD8E6', '#800080', '#808080', '#000000', '#FFFFFF'];
         const colorsContainer = document.getElementById('colors-container');
         palette.forEach(c => {
             const btn = document.createElement('div');
@@ -333,18 +337,34 @@
             document.getElementById('winners-list').innerHTML = winners.map((p,i) => `<h3 style="color:${p.color}">第 ${i+1} 名: ${p.name} (${p.score}分)</h3>`).join('');
         });
 
-        socket.on('return_to_lobby', () => {
-            document.getElementById('result-overlay').style.display = 'none';
-            document.getElementById('status-text').innerText = "遊戲結束，回到大廳";
-            if(isOwner) document.getElementById('host-start-btn').style.display = 'inline-block';
-        });
-
         document.getElementById('chat-input').onkeypress = (e) => {
             if(e.key === 'Enter') { 
                 socket.emit('send_message', { roomId: currentRoomId, text: e.target.value.trim() }); 
                 e.target.value = ''; 
             }
         };
+
+        function continueGame() {
+            // 1. 隱藏結算畫面
+            document.getElementById('result-overlay').style.display = 'none';
+            
+            // 2. 清除聊天室紀錄
+            document.getElementById('messages').innerHTML = 
+                '<div style="color:gray; font-size:12px; text-align:center; padding:10px 0;">--- 遊戲已重置，準備下一場 ---</div>';
+
+            // 3. 重置狀態文字
+            document.getElementById('status-text').innerText = "等待房主開始遊戲...";
+            
+            // 4. 如果是房主，重新顯示「開始遊戲」按鈕
+            if (isOwner) {
+                document.getElementById('host-start-btn').style.display = 'inline-block';
+            }
+            
+            // 5. 清除畫布
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
     </script>
 </body>
 </html>

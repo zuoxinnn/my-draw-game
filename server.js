@@ -54,8 +54,11 @@ io.on('connection', (socket) => {
         if (room && room.owner === socket.id && room.players.length >= 2) {
             room.roundCount = 0;
             room.drawerIndex = -1;
-            room.players.forEach(p => p.score = 0);
+            room.status = 'CHOOSING'; // 切換狀態，避免新玩家在選題時加入
+            room.players.forEach(p => p.score = 0); // 分數歸零
+            updateRoomPlayers(roomId);
             startNewRound(roomId);
+            io.emit('room_list', getPublicRooms()); // 更新大廳狀態
         }
     });
 
@@ -222,11 +225,18 @@ function endRoundPhase(roomId, reasonMsg) {
 
 function endGame(roomId) {
     const room = rooms[roomId];
+    if (!room) return;
+
     clearInterval(room.interval);
-    room.status = 'LOBBY';
+    room.status = 'LOBBY'; // 關鍵：狀態改回 LOBBY，讓新玩家可以進來
+
     const winners = [...room.players].sort((a,b) => b.score - a.score).slice(0,3);
+
+    // 通知所有人遊戲結束，並傳送排名
     io.to(roomId).emit('game_over', winners);
-    setTimeout(() => io.to(roomId).emit('return_to_lobby'), 10000);
+
+    // 立即更新大廳列表，讓其他人看到這間房現在可以進了
+    io.emit('room_list', getPublicRooms());
 }
 
 const PORT = process.env.PORT || 3000;
