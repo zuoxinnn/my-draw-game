@@ -3,105 +3,487 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WafflePancake你畫我猜</title>
+    <title>寶可夢你畫我猜 2026</title>
     <style>
-        * { box-sizing: border-box; -webkit-touch-callout: none; -webkit-user-select: none; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #e0e5ec; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; }
-        
-        #game-layout { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; max-width: 1000px; justify-content: center; }
-        
-        /* 大廳與面板 */
-        .panel { background: white; padding: 20px; border-radius: 12px; box-shadow: 4px 4px 10px #d1d9e6, -4px -4px 10px #ffffff; width: 100%; text-align: center; }
-        #lobby-view { max-width: 500px; }
-        .room-item { border-bottom: 1px solid #eee; padding: 10px; display: flex; justify-content: space-between; align-items: center; }
-        
-        /* 畫布區塊 */
-        #canvas-wrap { position: relative; flex: 1; min-width: 320px; background: white; padding: 10px; border-radius: 12px; }
-        canvas { border: 2px solid #ccc; width: 100%; background: #fff; touch-action: none; cursor: crosshair; }
-        
-        /* 右側資訊與聊天 */
-        #sidebar { width: 100%; max-width: 300px; display: flex; flex-direction: column; gap: 10px; }
-        #player-list { background: white; padding: 10px; border-radius: 12px; min-height: 100px; }
-        #chat-wrap { background: white; border-radius: 12px; padding: 10px; height: 350px; display: flex; flex-direction: column; }
-        #messages { flex: 1; overflow-y: auto; font-size: 14px; text-align: left; margin-bottom: 10px; border-bottom: 1px solid #eee; }
-        
-        /* 工具列 */
-        #tools { display: none; background: #f8f9fa; padding: 10px; border-radius: 8px; margin-top: 10px; }
-        .tool-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; justify-content: center; }
-        .color-btn { width: 25px; height: 25px; border-radius: 50%; border: 2px solid #ccc; cursor: pointer; }
-        .color-btn.active { border: 2px solid #000; transform: scale(1.1); }
-        .mode-btn { padding: 5px 10px; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; background: white; }
-        .mode-btn.active { background: #2196F3; color: white; border-color: #2196F3; }
-        
-        /* 浮層 */
-        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; border-radius: 12px; }
-        
-        .btn { padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; background: #4CAF50; color: white; margin: 5px; }
-        .btn-danger { background: #f44336; }
-        
-        #top-bar { display: flex; justify-content: space-between; align-items: center; background: #333; color: white; padding: 10px 20px; border-radius: 8px; margin-bottom: 10px; }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+
+        * { box-sizing: border-box; -webkit-touch-callout: none; -webkit-user-select: none; margin: 0; padding: 0; }
+
+        :root {
+            --red: #CC0000;
+            --red-dark: #990000;
+            --red-light: #ff4444;
+            --gold: #FFD700;
+            --bg: #1a1a2e;
+            --card: #ffffff;
+            --text: #1a1a1a;
+            --shadow: 0 4px 20px rgba(0,0,0,0.3);
+            --radius: 16px;
+        }
+
+        body {
+            font-family: 'Noto Sans TC', 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* ===== 大廳 ===== */
+        #lobby-view {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 40px 32px;
+            max-width: 480px;
+            width: 100%;
+            box-shadow: var(--shadow);
+            text-align: center;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .lobby-logo {
+            font-size: 48px;
+            margin-bottom: 8px;
+        }
+
+        .lobby-title {
+            font-size: 26px;
+            font-weight: 900;
+            color: var(--red);
+            margin-bottom: 4px;
+            letter-spacing: 1px;
+        }
+
+        .lobby-subtitle {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 28px;
+        }
+
+        #username {
+            padding: 14px 18px;
+            width: 100%;
+            border-radius: 12px;
+            border: 2px solid #e0e0e0;
+            font-size: 16px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            -webkit-user-select: auto;
+            user-select: auto;
+        }
+        #username:focus { border-color: var(--red); box-shadow: 0 0 0 4px rgba(204,0,0,0.1); }
+
+        .lobby-divider {
+            margin: 24px 0;
+            border: none;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .lobby-rooms-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #555;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .room-item {
+            border: 1px solid #f0f0f0;
+            padding: 12px 16px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            background: #fafafa;
+            transition: background 0.2s;
+        }
+        .room-item:hover { background: #fff5f5; }
+
+        .room-info { text-align: left; }
+        .room-name { font-weight: 700; font-size: 15px; color: var(--text); }
+        .room-meta { font-size: 12px; color: #888; margin-top: 2px; }
+
+        .room-count-bar {
+            width: 60px;
+            height: 6px;
+            background: #eee;
+            border-radius: 3px;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+        .room-count-fill { height: 100%; background: var(--red); border-radius: 3px; transition: width 0.3s; }
+
+        #room-list-empty { color: #bbb; font-size: 14px; padding: 20px 0; }
+
+        /* ===== 按鈕 ===== */
+        .btn {
+            padding: 12px 24px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            font-weight: 700;
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn:active { transform: scale(0.96); }
+
+        .btn-primary { background: var(--red); color: white; }
+        .btn-primary:hover { background: var(--red-dark); }
+
+        .btn-success { background: #22c55e; color: white; }
+        .btn-success:hover { background: #16a34a; }
+
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+
+        .btn-ghost { background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3); }
+        .btn-ghost:hover { background: rgba(255,255,255,0.25); }
+
+        .btn-sm { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        /* ===== 遊戲頂部狀態列 ===== */
+        #top-bar {
+            width: 100%;
+            max-width: 1020px;
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: white;
+            padding: 10px 18px;
+            border-radius: var(--radius);
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        #room-display-id { font-size: 13px; color: rgba(255,255,255,0.6); }
+        #status-text { font-weight: 700; color: var(--gold); font-size: 15px; flex: 1; text-align: center; }
+
+        #timer-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        #timer-text {
+            font-size: 22px;
+            font-weight: 900;
+            color: white;
+            min-width: 52px;
+            text-align: center;
+            transition: color 0.3s;
+        }
+        #timer-text.urgent { color: #ff4444; animation: pulse 0.5s infinite alternate; }
+
+        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.12); } }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes bounceIn { 0% { transform: scale(0.6); opacity:0; } 70% { transform: scale(1.05); } 100% { transform: scale(1); opacity:1; } }
+        @keyframes correctFlash { 0%,100% { background: transparent; } 50% { background: rgba(34,197,94,0.15); } }
+
+        /* ===== 遊戲佈局 ===== */
+        #game-layout { display: flex; flex-wrap: wrap; gap: 12px; width: 100%; max-width: 1020px; justify-content: center; }
+
+        /* ===== 畫布 ===== */
+        #canvas-wrap {
+            position: relative;
+            flex: 1;
+            min-width: 320px;
+            background: white;
+            padding: 12px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+
+        canvas {
+            border: 2px solid #e8e8e8;
+            width: 100%;
+            background: #fff;
+            touch-action: none;
+            cursor: crosshair;
+            border-radius: 8px;
+            display: block;
+        }
+
+        /* ===== 工具列 ===== */
+        #tools {
+            display: none;
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 12px;
+            margin-top: 10px;
+            border: 1px solid #eee;
+        }
+
+        .tool-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; justify-content: center; }
+        .tool-row:last-child { margin-bottom: 0; }
+
+        .color-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.15s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .color-btn:hover { transform: scale(1.15); }
+        .color-btn.active { border: 3px solid #333; transform: scale(1.2); box-shadow: 0 0 0 2px white, 0 0 0 4px #333; }
+
+        .mode-btn {
+            padding: 7px 14px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            background: white;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.15s;
+        }
+        .mode-btn:hover { border-color: var(--red); color: var(--red); }
+        .mode-btn.active { background: var(--red); color: white; border-color: var(--red); }
+
+        .size-wrap { display: flex; align-items: center; gap: 8px; color: #555; font-size: 13px; }
+        #size { accent-color: var(--red); width: 90px; }
+
+        #rgb-picker { width: 32px; height: 32px; border: none; cursor: pointer; border-radius: 50%; padding: 0; background: none; }
+
+        /* ===== 右側欄 ===== */
+        #sidebar { width: 100%; max-width: 280px; display: flex; flex-direction: column; gap: 10px; }
+
+        #player-list {
+            background: white;
+            padding: 14px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+
+        .panel-title {
+            font-weight: 700;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #999;
+            margin-bottom: 10px;
+        }
+
+        .player-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #f5f5f5;
+            font-size: 14px;
+        }
+        .player-item:last-child { border-bottom: none; }
+        .player-name { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+        .player-score { font-size: 13px; color: #888; }
+        .player-badge { font-size: 16px; min-width: 24px; text-align: center; }
+        .drawing-tag {
+            font-size: 10px;
+            background: #fff3cd;
+            color: #856404;
+            padding: 2px 7px;
+            border-radius: 20px;
+            font-weight: 700;
+            border: 1px solid #ffd700;
+        }
+
+        /* ===== 聊天 ===== */
+        #chat-wrap {
+            background: white;
+            border-radius: var(--radius);
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            height: 360px;
+            box-shadow: var(--shadow);
+        }
+
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            font-size: 13px;
+            text-align: left;
+            margin-bottom: 10px;
+            padding-right: 4px;
+        }
+        #messages::-webkit-scrollbar { width: 4px; }
+        #messages::-webkit-scrollbar-track { background: transparent; }
+        #messages::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+        .msg { padding: 5px 8px; border-radius: 8px; margin-bottom: 4px; line-height: 1.4; }
+        .msg-normal { background: transparent; }
+        .msg-correct { background: #dcfce7; border: 1px solid #86efac; animation: correctFlash 0.5s; }
+        .msg-system { background: #f0f9ff; color: #0284c7; font-style: italic; text-align: center; font-size: 12px; }
+
+        #chat-input {
+            padding: 10px 14px;
+            width: 100%;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+            -webkit-user-select: auto;
+            user-select: auto;
+        }
+        #chat-input:focus { border-color: var(--red); }
+
+        /* ===== 浮層 ===== */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(255,255,255,0.94);
+            backdrop-filter: blur(4px);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            border-radius: calc(var(--radius) - 2px);
+            gap: 12px;
+        }
+
+        #word-overlay h3 { font-size: 20px; color: #333; margin-bottom: 4px; }
+        #word-options { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+        /* ===== 結算浮層 ===== */
+        #result-overlay {
+            background: linear-gradient(160deg, rgba(20,20,40,0.97) 0%, rgba(10,10,30,0.97) 100%);
+        }
+
+        .result-title {
+            font-size: 28px;
+            font-weight: 900;
+            color: var(--gold);
+            text-shadow: 0 0 20px rgba(255,215,0,0.5);
+            margin-bottom: 8px;
+        }
+
+        #winners-list { width: 100%; max-width: 320px; }
+
+        .winner-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,0.08);
+            animation: bounceIn 0.5s ease backwards;
+        }
+        .winner-item:nth-child(1) { animation-delay: 0.1s; border: 1px solid rgba(255,215,0,0.4); }
+        .winner-item:nth-child(2) { animation-delay: 0.2s; border: 1px solid rgba(192,192,192,0.3); }
+        .winner-item:nth-child(3) { animation-delay: 0.3s; border: 1px solid rgba(205,127,50,0.3); }
+
+        .winner-rank { font-size: 24px; min-width: 32px; }
+        .winner-name { font-weight: 700; font-size: 16px; }
+        .winner-score { margin-left: auto; font-size: 14px; color: rgba(255,255,255,0.6); }
+
+        .result-actions { display: flex; gap: 10px; margin-top: 8px; }
     </style>
 </head>
 <body>
 
-    <div id="lobby-view" class="panel">
-        <h2>寶可夢你畫我猜之2026版</h2>
-        <input type="text" id="username" placeholder="輸入你的暱稱" style="padding:10px; width:80%; margin-bottom:15px; border-radius:5px; border:1px solid #ccc;">
+    <!-- 大廳 -->
+    <div id="lobby-view">
+        <div class="lobby-logo">🎨</div>
+        <div class="lobby-title">寶可夢你畫我猜</div>
+        <div class="lobby-subtitle">2026 版 · WafflePancake</div>
+
+        <input type="text" id="username" placeholder="輸入你的暱稱" style="margin-bottom: 16px;">
         <br>
-        <button class="btn" onclick="createRoom()">創造房間</button>
-        <hr style="margin:20px 0; border:0; border-top:1px solid #eee;">
-        <h4>加入現有房間</h4>
-        <div id="room-list">讀取中...</div>
+        <button class="btn btn-primary" onclick="createRoom()" style="width:100%; justify-content:center; font-size:16px; padding:14px;">
+            🏠 創造房間
+        </button>
+
+        <hr class="lobby-divider">
+
+        <div class="lobby-rooms-title">加入現有房間</div>
+        <div id="room-list">
+            <div id="room-list-empty">讀取中...</div>
+        </div>
     </div>
 
-    <div id="game-view" style="display:none; width:100%;">
+    <!-- 遊戲視圖 -->
+    <div id="game-view" style="display:none; width:100%; display:none; flex-direction:column; align-items:center;">
+
         <div id="top-bar">
             <span id="room-display-id">房間: ---</span>
-            <span id="status-text" style="font-weight:bold; color:#FFD700;">準備中...</span>
-            <span id="timer-text">時間: --</span>
-            <div>
-                <button id="host-start-btn" class="btn" style="display:none; padding:5px 10px;" onclick="socket.emit('start_game', currentRoomId)">開始遊戲</button>
-                <button id="host-end-btn" class="btn btn-danger" style="display:none; padding:5px 10px;" onclick="socket.emit('host_end_game', currentRoomId)">結束遊戲</button>
-                <button class="btn btn-danger" style="padding:5px 10px;" onclick="location.reload()">退出房間</button>
+            <span id="status-text">準備中...</span>
+            <div id="timer-wrap">
+                <span style="font-size:13px; opacity:0.6;">⏱</span>
+                <span id="timer-text">--</span>
+            </div>
+            <div style="display:flex; gap:6px;">
+                <button id="host-start-btn" class="btn btn-success btn-sm" style="display:none;" onclick="socket.emit('start_game', currentRoomId)">▶ 開始遊戲</button>
+                <button id="host-end-btn" class="btn btn-danger btn-sm" style="display:none;" onclick="socket.emit('host_end_game', currentRoomId)">■ 結束遊戲</button>
+                <button class="btn btn-ghost btn-sm" onclick="location.reload()">✕ 退出</button>
             </div>
         </div>
 
         <div id="game-layout">
+            <!-- 畫布 -->
             <div id="canvas-wrap">
                 <canvas id="canvas" width="600" height="450"></canvas>
-                
+
+                <!-- 選題浮層 -->
                 <div id="word-overlay" class="overlay">
                     <h3 id="overlay-title">請選擇題目</h3>
                     <div id="word-options"></div>
                 </div>
-                
+
+                <!-- 結算浮層 -->
                 <div id="result-overlay" class="overlay">
-                    <h2>🏆 遊戲結算</h2>
+                    <div class="result-title">🏆 遊戲結算</div>
                     <div id="winners-list"></div>
-                    <div style="margin-top: 20px;">
-                        <button class="btn" onclick="continueGame()">繼續遊戲</button>
-                        <button class="btn btn-danger" onclick="location.reload()">退出房間</button>
+                    <div class="result-actions">
+                        <button class="btn btn-success" onclick="continueGame()">🔄 繼續遊戲</button>
+                        <button class="btn btn-danger" onclick="location.reload()">✕ 退出房間</button>
                     </div>
                 </div>
 
+                <!-- 工具列 -->
                 <div id="tools">
                     <div class="tool-row">
                         <button class="mode-btn active" id="btn-pen" onclick="setMode('pen')">✏️ 畫筆</button>
                         <button class="mode-btn" id="btn-fill" onclick="setMode('fill')">🪣 油漆桶</button>
-                        <button class="mode-btn" onclick="clearCanvas()">🗑️ 清除畫布</button>
-                        粗細: <input type="range" id="size" min="1" max="20" value="3">
+                        <button class="mode-btn" onclick="clearCanvas()">🗑️ 清除</button>
+                        <div class="size-wrap">
+                            粗細: <input type="range" id="size" min="1" max="20" value="3">
+                        </div>
                     </div>
                     <div class="tool-row" id="colors-container">
-                        <input type="color" id="rgb-picker" title="自訂顏色" onchange="setColor(this.value)" style="width:30px; height:30px; border:none; cursor:pointer;">
+                        <input type="color" id="rgb-picker" title="自訂顏色" onchange="setColor(this.value)" style="width:32px; height:32px;">
                     </div>
                 </div>
             </div>
 
+            <!-- 右側欄 -->
             <div id="sidebar">
-                <div id="player-list"></div>
+                <div id="player-list">
+                    <div class="panel-title">玩家排行</div>
+                    <div id="player-items"></div>
+                </div>
                 <div id="chat-wrap">
+                    <div class="panel-title">猜答區</div>
                     <div id="messages"></div>
-                    <input type="text" id="chat-input" placeholder="輸入答案 (Enter發送)" style="padding:10px; width:100%; border:1px solid #ccc; border-radius:5px;">
+                    <input type="text" id="chat-input" placeholder="輸入答案，按 Enter 送出">
                 </div>
             </div>
         </div>
@@ -112,16 +494,17 @@
         const socket = io();
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        
-        let currentRoomId = null, isOwner = false, isDrawer = false;
-        let drawing = false, currentColor = 'black', currentMode = 'pen'; // 'pen' 或 'fill'
 
-        // 初始化顏色盤
-        const palette = ['#FF0000', '#FFC0CB', '#FFA500', '#FECB3E', '#008000', '#90EE90', '#0000FF', '#ADD8E6', '#800080', '#808080', '#000000', '#FFFFFF'];
+        let currentRoomId = null, isOwner = false, isDrawer = false;
+        let drawing = false, currentColor = 'black', currentMode = 'pen';
+
+        // 顏色盤
+        const palette = ['#FF0000','#FFC0CB','#FFA500','#FECB3E','#008000','#90EE90','#0000FF','#ADD8E6','#800080','#808080','#000000','#FFFFFF'];
         const colorsContainer = document.getElementById('colors-container');
         palette.forEach(c => {
             const btn = document.createElement('div');
-            btn.className = 'color-btn'; btn.style.background = c;
+            btn.className = 'color-btn';
+            btn.style.background = c;
             btn.onclick = () => setColor(c, btn);
             colorsContainer.insertBefore(btn, document.getElementById('rgb-picker'));
         });
@@ -135,25 +518,22 @@
         function setColor(color, btnElem) {
             currentColor = color;
             document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
-            if(btnElem) btnElem.classList.add('active');
+            if (btnElem) btnElem.classList.add('active');
         }
 
-        // 坐標轉換 (適應螢幕縮放)
         const getPos = (e) => {
             const rect = canvas.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return { x: Math.round((clientX - rect.left) * (canvas.width / rect.width)), 
+            return { x: Math.round((clientX - rect.left) * (canvas.width / rect.width)),
                      y: Math.round((clientY - rect.top) * (canvas.height / rect.height)) };
         };
 
-        // 繪圖事件
         const startAction = (e) => {
-            if(!isDrawer) return;
+            if (!isDrawer) return;
             e.preventDefault();
             const pos = getPos(e);
-
-            if(currentMode === 'pen') {
+            if (currentMode === 'pen') {
                 drawing = true;
                 const data = { ...pos, color: currentColor, size: document.getElementById('size').value, type: 'start', roomId: currentRoomId };
                 socket.emit('draw_data', data); paint(data);
@@ -164,7 +544,7 @@
         };
 
         const moveAction = (e) => {
-            if(!drawing || !isDrawer || currentMode !== 'pen') return;
+            if (!drawing || !isDrawer || currentMode !== 'pen') return;
             e.preventDefault();
             const pos = getPos(e);
             const data = { ...pos, color: currentColor, size: document.getElementById('size').value, type: 'draw', roomId: currentRoomId };
@@ -185,15 +565,14 @@
         }
 
         function clearCanvas() {
-            if(isDrawer) socket.emit('clear_canvas', currentRoomId);
+            if (isDrawer) socket.emit('clear_canvas', currentRoomId);
         }
-        
+
         socket.on('clear_canvas', () => {
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         });
 
-        // 👑 油漆桶演算法 (BFS Flood Fill)
         function hexToRgba(hex) {
             const tempCtx = document.createElement('canvas').getContext('2d');
             tempCtx.fillStyle = hex; tempCtx.fillRect(0,0,1,1);
@@ -206,12 +585,9 @@
             const fillRgba = hexToRgba(fillColorStr);
             const startPos = (startY * canvas.width + startX) * 4;
             const startR = data[startPos], startG = data[startPos+1], startB = data[startPos+2], startA = data[startPos+3];
-
             if (startR === fillRgba[0] && startG === fillRgba[1] && startB === fillRgba[2] && startA === fillRgba[3]) return;
-
             const matchStartColor = (pos) => data[pos] === startR && data[pos+1] === startG && data[pos+2] === startB && data[pos+3] === startA;
             const colorPixel = (pos) => { data[pos] = fillRgba[0]; data[pos+1] = fillRgba[1]; data[pos+2] = fillRgba[2]; data[pos+3] = 255; };
-
             const pixelStack = [[startX, startY]];
             while (pixelStack.length) {
                 const newPos = pixelStack.pop();
@@ -219,7 +595,6 @@
                 let pixelPos = (y * canvas.width + x) * 4;
                 while (y-- >= 0 && matchStartColor(pixelPos)) pixelPos -= canvas.width * 4;
                 pixelPos += canvas.width * 4; ++y;
-                
                 let reachLeft = false, reachRight = false;
                 while (y++ < canvas.height - 1 && matchStartColor(pixelPos)) {
                     colorPixel(pixelPos);
@@ -236,70 +611,88 @@
             }
             ctx.putImageData(imgData, 0, 0);
         }
-        
+
         socket.on('draw_data', paint);
         socket.on('fill_canvas', (data) => executeFill(data.x, data.y, data.color));
 
-        // --- 房間與流程控制 ---
+        // --- 房間邏輯 ---
         function createRoom() {
-            const name = document.getElementById('username').value;
-            if(name) socket.emit('create_room', { name });
+            const name = document.getElementById('username').value.trim();
+            if (name) socket.emit('create_room', { name });
         }
 
         function joinRoom(id) {
-            const name = document.getElementById('username').value;
-            if(name) socket.emit('join_room', { roomId: id, name });
+            const name = document.getElementById('username').value.trim();
+            if (name) socket.emit('join_room', { roomId: id, name });
             else alert('請先輸入暱稱');
         }
 
         socket.on('room_list', (rooms) => {
             const container = document.getElementById('room-list');
-            container.innerHTML = rooms.length ? '' : '目前無房間';
-            rooms.forEach(r => {
-                container.innerHTML += `<div class="room-item">
-                    <span>🏠 ${r.id} (${r.count}/5)</span>
-                    <button class="btn" style="padding:5px 10px;" onclick="joinRoom('${r.id}')" ${r.count>=5||r.status!=='LOBBY'?'disabled':''}>加入</button>
-                </div>`;
-            });
+            if (!rooms.length) {
+                container.innerHTML = '<div id="room-list-empty">目前沒有開放的房間</div>';
+                return;
+            }
+            container.innerHTML = rooms.map(r => `
+                <div class="room-item">
+                    <div class="room-info">
+                        <div class="room-name">🏠 ${r.id}</div>
+                        <div class="room-meta">${r.count}/5 人 · ${r.status === 'LOBBY' ? '等待中' : '遊戲中'}</div>
+                        <div class="room-count-bar"><div class="room-count-fill" style="width:${r.count/5*100}%"></div></div>
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="joinRoom('${r.id}')" ${r.count>=5||r.status!=='LOBBY'?'disabled':''}>加入</button>
+                </div>
+            `).join('');
         });
 
         socket.on('joined_room', (data) => {
             currentRoomId = data.roomId; isOwner = data.isOwner;
             document.getElementById('lobby-view').style.display = 'none';
-            document.getElementById('game-view').style.display = 'block';
+            document.getElementById('game-view').style.display = 'flex';
             document.getElementById('room-display-id').innerText = `房間: ${data.roomId}`;
-            document.getElementById('host-start-btn').style.display = isOwner ? 'inline-block' : 'none';
-            document.getElementById('host-end-btn').style.display = isOwner ? 'inline-block' : 'none';
-            ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,canvas.width,canvas.height);
+            document.getElementById('host-start-btn').style.display = isOwner ? 'inline-flex' : 'none';
+            document.getElementById('host-end-btn').style.display = isOwner ? 'inline-flex' : 'none';
+            ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height);
         });
 
         socket.on('you_are_owner', () => {
             isOwner = true;
-            document.getElementById('host-start-btn').style.display = 'inline-block';
-            document.getElementById('host-end-btn').style.display = 'inline-block';
+            document.getElementById('host-start-btn').style.display = 'inline-flex';
+            document.getElementById('host-end-btn').style.display = 'inline-flex';
         });
 
         socket.on('update_players', (players) => {
-            const pList = [...players].sort((a,b)=>b.score-a.score);
-            document.getElementById('player-list').innerHTML = '<b>玩家列表 (依分數)</b><br>' + 
-                pList.map(p => `<span style="color:${p.color}; font-weight:bold;">● ${p.name} - ${p.score}分</span>`).join('<br>');
+            const rankEmoji = ['🥇','🥈','🥉'];
+            const pList = [...players].sort((a,b) => b.score - a.score);
+            const drawerId = pList.find(p => p.isDrawing)?.id;
+            document.getElementById('player-items').innerHTML = pList.map((p, i) => `
+                <div class="player-item">
+                    <span class="player-badge">${rankEmoji[i] || (i+1)}</span>
+                    <span class="player-name" style="color:${p.color}">● ${p.name}${p.isDrawing ? ' <span class="drawing-tag">✏️ 作畫中</span>' : ''}</span>
+                    <span class="player-score">${p.score}分</span>
+                </div>
+            `).join('');
         });
 
         // 回合事件
         socket.on('round_start', (data) => {
             document.getElementById('result-overlay').style.display = 'none';
             document.getElementById('host-start-btn').style.display = 'none';
-            document.getElementById('status-text').innerText = `第 ${data.round}/${data.maxRounds} 回合：等待 ${data.drawerName} 選題`;
+            document.getElementById('status-text').innerText = `第 ${data.round}/${data.maxRounds} 回合 · 等待 ${data.drawerName} 選題`;
+            document.getElementById('timer-text').innerText = '--';
+            document.getElementById('timer-text').classList.remove('urgent');
         });
 
         socket.on('select_word_options', (options) => {
             const overlay = document.getElementById('word-overlay');
             overlay.style.display = 'flex';
-            document.getElementById('overlay-title').innerText = "請選擇題目 (10秒)";
+            document.getElementById('overlay-title').innerText = '請選擇題目（10秒）';
             const container = document.getElementById('word-options');
             container.innerHTML = '';
             options.forEach(word => {
-                const b = document.createElement('button'); b.innerText = word; b.className = 'btn';
+                const b = document.createElement('button');
+                b.innerText = word; b.className = 'btn btn-primary';
+                b.style.fontSize = '16px'; b.style.padding = '12px 24px';
                 b.onclick = () => { socket.emit('pick_word', { roomId: currentRoomId, word }); overlay.style.display = 'none'; };
                 container.appendChild(b);
             });
@@ -309,62 +702,68 @@
             isDrawer = (socket.id === data.drawerId);
             document.getElementById('tools').style.display = isDrawer ? 'block' : 'none';
             document.getElementById('word-overlay').style.display = 'none';
-            document.getElementById('status-text').innerText = isDrawer ? "你是出題者，請開始畫！" : "觀察並猜測答案！";
+            document.getElementById('status-text').innerText = isDrawer ? '✏️ 你是出題者，請開始畫！' : '🔍 觀察並猜測答案！';
         });
 
         socket.on('show_answer', (data) => {
             document.getElementById('tools').style.display = 'none';
-            document.getElementById('status-text').innerText = `${data.reason} 答案是：「${data.word}」`;
-            document.getElementById('timer-text').innerText = `下一回合準備中...`;
+            document.getElementById('status-text').innerText = `${data.reason} · 答案：「${data.word}」`;
+            document.getElementById('timer-text').innerText = '⏳';
+            document.getElementById('timer-text').classList.remove('urgent');
         });
 
-        socket.on('your_word', (word) => document.getElementById('status-text').innerText = `你的題目：${word}`);
-        socket.on('timer_tick', (t) => document.getElementById('timer-text').innerText = `倒數: ${t}s`);
+        socket.on('your_word', (word) => document.getElementById('status-text').innerText = `🎯 你的題目：${word}`);
+
+        socket.on('timer_tick', (t) => {
+            const el = document.getElementById('timer-text');
+            el.innerText = `${t}s`;
+            el.classList.toggle('urgent', t <= 10);
+        });
 
         socket.on('chat_message', (data) => {
             const m = document.getElementById('messages');
-            m.innerHTML += `<div style="margin-bottom:5px;"><b style="color:${data.color}">${data.sender}:</b> ${data.text}</div>`;
-            // 【新增】：限制最多只顯示 15 則訊息
-            while (m.childElementCount > 15) {
-                m.removeChild(m.firstElementChild); // 刪除最上面（最舊）的那一則
-            }
-            
+            const isCorrect = data.text && data.text.includes('猜對了');
+            const div = document.createElement('div');
+            div.className = `msg ${isCorrect ? 'msg-correct' : 'msg-normal'}`;
+            div.innerHTML = `<b style="color:${data.color}">${data.sender}:</b> ${data.text}`;
+            m.appendChild(div);
+            while (m.childElementCount > 15) m.removeChild(m.firstElementChild);
             m.scrollTop = m.scrollHeight;
         });
 
         socket.on('game_over', (winners) => {
+            const rankEmoji = ['🥇','🥈','🥉'];
             document.getElementById('result-overlay').style.display = 'flex';
-            document.getElementById('winners-list').innerHTML = winners.map((p,i) => `<h3 style="color:${p.color}">第 ${i+1} 名: ${p.name} (${p.score}分)</h3>`).join('');
+            document.getElementById('winners-list').innerHTML = winners.map((p, i) => `
+                <div class="winner-item">
+                    <span class="winner-rank">${rankEmoji[i] || (i+1)}</span>
+                    <span class="winner-name" style="color:${p.color}">${p.name}</span>
+                    <span class="winner-score">${p.score} 分</span>
+                </div>
+            `).join('');
         });
 
         document.getElementById('chat-input').onkeypress = (e) => {
-            if(e.key === 'Enter') { 
-                socket.emit('send_message', { roomId: currentRoomId, text: e.target.value.trim() }); 
-                e.target.value = ''; 
+            if (e.key === 'Enter') {
+                const text = e.target.value.trim();
+                if (text) { socket.emit('send_message', { roomId: currentRoomId, text }); }
+                e.target.value = '';
             }
         };
 
         function continueGame() {
-            // 1. 隱藏結算畫面
             document.getElementById('result-overlay').style.display = 'none';
-            
-            // 2. 清除聊天室紀錄
-            document.getElementById('messages').innerHTML = 
-                '<div style="color:gray; font-size:12px; text-align:center; padding:10px 0;">--- 遊戲已重置，準備下一場 ---</div>';
-
-            // 3. 重置狀態文字
-            document.getElementById('status-text').innerText = "等待房主開始遊戲...";
-            
-            // 4. 如果是房主，重新顯示「開始遊戲」按鈕
-            if (isOwner) {
-                document.getElementById('host-start-btn').style.display = 'inline-block';
-            }
-            
-            // 5. 清除畫布
+            const m = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = 'msg msg-system';
+            div.innerText = '--- 遊戲已重置，準備下一場 ---';
+            m.innerHTML = '';
+            m.appendChild(div);
+            document.getElementById('status-text').innerText = '等待房主開始遊戲...';
+            if (isOwner) document.getElementById('host-start-btn').style.display = 'inline-flex';
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
-
     </script>
 </body>
 </html>
