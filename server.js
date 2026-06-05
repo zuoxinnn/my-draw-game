@@ -25,7 +25,8 @@ io.on('connection', (socket) => {
             players: [{ id: socket.id, name: data.name, score: 0, color: idColors[0] }],
             status: 'LOBBY', roundCount: 0, maxRounds: 10,
             currentWord: "", currentDrawerId: null, drawerIndex: -1,
-            correctGuessers: [], timer: 0, interval: null, pickTimeout: null
+            correctGuessers: [], timer: 0, interval: null, pickTimeout: null,
+            maxPlayers: 8
         };
         socket.join(roomId);
         socket.emit('joined_room', { roomId, isOwner: true });
@@ -36,7 +37,7 @@ io.on('connection', (socket) => {
     // 加入房間（遊戲進行中也可加入，但分數從 0 開始）
     socket.on('join_room', (data) => {
         const room = rooms[data.roomId];
-        if (room && room.players.length < 5) {
+        if (room && room.players.length < room.maxPlayers) {
             const pColor = idColors[room.players.length % idColors.length];
             room.players.push({ id: socket.id, name: data.name, score: 0, color: pColor });
             socket.join(data.roomId);
@@ -48,7 +49,7 @@ io.on('connection', (socket) => {
             updateRoomPlayers(data.roomId);
             io.emit('room_list', getPublicRooms());
         } else {
-            socket.emit('error_msg', '房間無法加入（已滿 5 人）');
+            socket.emit('error_msg', '房間無法加入（已滿 8 人）');
         }
     });
 
@@ -106,6 +107,13 @@ io.on('connection', (socket) => {
         const room = rooms[roomId];
         if (room && socket.id === room.currentDrawerId) io.to(roomId).emit('clear_canvas');
     });
+    socket.on('undo_canvas', (data) => {
+        const room = rooms[data.roomId];
+        // 只有出題者可以發送 undo，轉發給其他人
+        if (room && socket.id === room.currentDrawerId) {
+            socket.to(data.roomId).emit('undo_canvas', { dataURL: data.dataURL });
+        }
+    });
 
     // 聊天與猜題邏輯
     socket.on('send_message', (data) => {
@@ -140,7 +148,7 @@ io.on('connection', (socket) => {
 
 // --- 輔助函數 ---
 function getPublicRooms() {
-    return Object.values(rooms).map(r => ({ id: r.id, count: r.players.length, status: r.status }));
+    return Object.values(rooms).map(r => ({ id: r.id, count: r.players.length, max: r.maxPlayers, status: r.status }));
 }
 
 function updateRoomPlayers(roomId) {
@@ -253,7 +261,10 @@ function startDrawingPhase(roomId) {
     io.to(room.currentDrawerId).emit('your_word', room.currentWord);
 
     room.interval = setInterval(() => {
-        room.timer--;
+        // 每猜對一人，計時器額外多扣 1 秒（最多加速到 -4/s）
+        const speedBonus = Math.min(room.correctGuessers.length, 3);
+        room.timer -= (1 + speedBonus);
+        if (room.timer < 0) room.timer = 0;
         io.to(roomId).emit('timer_tick', room.timer);
         if (room.timer <= 0) endRoundPhase(roomId, "時間到！");
     }, 1000);

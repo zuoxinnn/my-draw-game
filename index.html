@@ -396,6 +396,73 @@
         .winner-score { margin-left: auto; font-size: 14px; color: rgba(255,255,255,0.6); }
 
         .result-actions { display: flex; gap: 10px; margin-top: 8px; }
+
+        /* ===== 手機版面 ===== */
+        @media (max-width: 768px) {
+            body { padding: 8px; }
+
+            #top-bar {
+                padding: 8px 12px;
+                gap: 6px;
+            }
+            #status-text { font-size: 13px; }
+            #timer-text { font-size: 18px; }
+
+            /* 遊戲區改為直向排列：畫布 → 聊天 → 玩家列表 */
+            #game-layout {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            #canvas-wrap { min-width: unset; width: 100%; }
+
+            /* 右側欄在手機改成正常流（全寬），聊天在上、玩家列表在下 */
+            #sidebar {
+                max-width: unset;
+                width: 100%;
+                /* 聊天在前，玩家在後 */
+                flex-direction: column;
+            }
+
+            /* 聊天區縮小高度，讓畫布不被擠出螢幕外 */
+            #chat-wrap { height: 200px; }
+
+            /* 玩家列表改為橫向捲動，節省垂直空間 */
+            #player-list { padding: 10px 12px; }
+            #player-items {
+                display: flex;
+                flex-direction: row;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                gap: 8px;
+                padding-bottom: 4px;
+            }
+            #player-items::-webkit-scrollbar { height: 3px; }
+            #player-items::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+            .player-item {
+                flex-direction: column;
+                align-items: center;
+                border-bottom: none;
+                border-right: 1px solid #f5f5f5;
+                padding: 4px 10px 4px 6px;
+                min-width: 70px;
+                text-align: center;
+                gap: 2px;
+            }
+            .player-item:last-child { border-right: none; }
+            .player-name { font-size: 12px; flex-direction: column; gap: 2px; }
+            .player-score { font-size: 12px; }
+
+            /* 工具列在手機稍微緊湊 */
+            #tools { padding: 8px; }
+            .tool-row { gap: 6px; }
+            .color-btn { width: 28px; height: 28px; }
+        }
+
+        /* 在手機上把 sidebar 的順序對調：聊天(order:1)在玩家(order:2)之前 */
+        #chat-wrap { order: 1; }
+        #player-list { order: 2; }
     </style>
 </head>
 <body>
@@ -463,6 +530,7 @@
                     <div class="tool-row">
                         <button class="mode-btn active" id="btn-pen" onclick="setMode('pen')">✏️ 畫筆</button>
                         <button class="mode-btn" id="btn-fill" onclick="setMode('fill')">🪣 油漆桶</button>
+                        <button class="mode-btn" onclick="undoCanvas()" id="btn-undo">↩️ 上一步</button>
                         <button class="mode-btn" onclick="clearCanvas()">🗑️ 清除</button>
                         <div class="size-wrap">
                             粗細: <input type="range" id="size" min="1" max="20" value="3">
@@ -497,6 +565,33 @@
 
         let currentRoomId = null, isOwner = false, isDrawer = false;
         let drawing = false, currentColor = 'black', currentMode = 'pen';
+
+        // ===== Undo 機制 =====
+        const undoStack = [];
+        const MAX_UNDO = 15;
+
+        function saveSnapshot() {
+            // 儲存當前畫布快照（壓縮為 PNG base64）
+            undoStack.push(canvas.toDataURL('image/png'));
+            if (undoStack.length > MAX_UNDO) undoStack.shift();
+        }
+
+        function undoCanvas() {
+            if (!isDrawer || undoStack.length === 0) return;
+            const dataURL = undoStack.pop();
+            applySnapshot(dataURL);
+            // 通知其他玩家
+            socket.emit('undo_canvas', { roomId: currentRoomId, dataURL });
+        }
+
+        function applySnapshot(dataURL) {
+            const img = new Image();
+            img.onload = () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = dataURL;
+        }
 
         // 顏色盤
         const palette = ['#FF0000','#FFC0CB','#FFA500','#FECB3E','#008000','#90EE90','#0000FF','#ADD8E6','#800080','#808080','#000000','#FFFFFF'];
@@ -534,10 +629,12 @@
             e.preventDefault();
             const pos = getPos(e);
             if (currentMode === 'pen') {
+                saveSnapshot(); // 每次開始一筆前先儲存
                 drawing = true;
                 const data = { ...pos, color: currentColor, size: document.getElementById('size').value, type: 'start', roomId: currentRoomId };
                 socket.emit('draw_data', data); paint(data);
             } else if (currentMode === 'fill') {
+                saveSnapshot(); // 油漆桶前也儲存
                 const data = { x: pos.x, y: pos.y, color: currentColor, roomId: currentRoomId };
                 socket.emit('fill_canvas', data); executeFill(pos.x, pos.y, currentColor);
             }
@@ -569,6 +666,7 @@
         }
 
         socket.on('clear_canvas', () => {
+            undoStack.length = 0; // 清除時也清掉 undo 紀錄
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         });
@@ -614,6 +712,7 @@
 
         socket.on('draw_data', paint);
         socket.on('fill_canvas', (data) => executeFill(data.x, data.y, data.color));
+        socket.on('undo_canvas', (data) => applySnapshot(data.dataURL));
 
         // --- 房間邏輯 ---
         function createRoom() {
@@ -637,10 +736,10 @@
                 <div class="room-item">
                     <div class="room-info">
                         <div class="room-name">🏠 ${r.id}</div>
-                        <div class="room-meta">${r.count}/5 人 · ${r.status === 'LOBBY' ? '等待中' : '遊戲中'}</div>
-                        <div class="room-count-bar"><div class="room-count-fill" style="width:${r.count/5*100}%"></div></div>
+                        <div class="room-meta">${r.count}/${r.max} 人 · ${r.status === 'LOBBY' ? '等待中' : '遊戲中'}</div>
+                        <div class="room-count-bar"><div class="room-count-fill" style="width:${r.count/r.max*100}%"></div></div>
                     </div>
-                    <button class="btn btn-primary btn-sm" onclick="joinRoom('${r.id}')" ${r.count>=5?'disabled':''}>加入</button>
+                    <button class="btn btn-primary btn-sm" onclick="joinRoom('${r.id}')" ${r.count>=r.max?'disabled':''}>加入</button>
                 </div>
             `).join('');
         });
