@@ -25,7 +25,7 @@ io.on('connection', (socket) => {
             players: [{ id: socket.id, name: data.name, score: 0, color: idColors[0] }],
             status: 'LOBBY', roundCount: 0, maxRounds: 10,
             currentWord: "", currentDrawerId: null, drawerIndex: -1,
-            correctGuessers: [], timer: 0, interval: null
+            correctGuessers: [], timer: 0, interval: null, pickTimeout: null
         };
         socket.join(roomId);
         socket.emit('joined_room', { roomId, isOwner: true });
@@ -52,13 +52,22 @@ io.on('connection', (socket) => {
     socket.on('start_game', (roomId) => {
         const room = rooms[roomId];
         if (room && room.owner === socket.id && room.players.length >= 2) {
+            // 清除所有可能殘留的計時器，防止舊回合干擾新遊戲
+            clearInterval(room.interval);
+            clearTimeout(room.pickTimeout);
+            room.interval = null;
+            room.pickTimeout = null;
+
             room.roundCount = 0;
             room.drawerIndex = -1;
-            room.status = 'CHOOSING'; // 切換狀態，避免新玩家在選題時加入
-            room.players.forEach(p => p.score = 0); // 分數歸零
+            room.currentWord = "";
+            room.currentDrawerId = null;
+            room.correctGuessers = [];
+            room.status = 'CHOOSING';
+            room.players.forEach(p => p.score = 0);
             updateRoomPlayers(roomId);
             startNewRound(roomId);
-            io.emit('room_list', getPublicRooms()); // 更新大廳狀態
+            io.emit('room_list', getPublicRooms());
         }
     });
 
@@ -120,7 +129,7 @@ io.on('connection', (socket) => {
                 endRoundPhase(data.roomId, "所有人都猜中啦！");
             }
         } else {
-            io.to(data.roomId).emit('chat_message', { sender: player.name, text: data.text, color: 'black' });
+            io.to(data.roomId).emit('chat_message', { sender: player.name, text: data.text, color: player.color });
         }
     });
 });
@@ -183,8 +192,13 @@ function startNewRound(roomId) {
         io.to(roomId).emit('timer_tick', pickTime);
         if (pickTime <= 0) {
             clearInterval(room.interval);
+            room.interval = null;
             io.to(roomId).emit('chat_message', { sender: '系統', text: `${drawer.name} 未在時間內選題，跳過回合。`, color: 'orange' });
-            setTimeout(() => startNewRound(roomId), 2000); // 緩衝2秒換人
+            // 存起來，才能在必要時取消
+            room.pickTimeout = setTimeout(() => {
+                room.pickTimeout = null;
+                startNewRound(roomId);
+            }, 2000);
         }
     }, 1000);
 }
@@ -228,6 +242,9 @@ function endGame(roomId) {
     if (!room) return;
 
     clearInterval(room.interval);
+    clearTimeout(room.pickTimeout);
+    room.interval = null;
+    room.pickTimeout = null;
     room.status = 'LOBBY'; // 關鍵：狀態改回 LOBBY，讓新玩家可以進來
 
     const winners = [...room.players].sort((a,b) => b.score - a.score).slice(0,3);
