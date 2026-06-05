@@ -33,18 +33,22 @@ io.on('connection', (socket) => {
         io.emit('room_list', getPublicRooms());
     });
 
-    // 加入房間
+    // 加入房間（遊戲進行中也可加入，但分數從 0 開始）
     socket.on('join_room', (data) => {
         const room = rooms[data.roomId];
-        if (room && room.players.length < 5 && room.status === 'LOBBY') {
+        if (room && room.players.length < 5) {
             const pColor = idColors[room.players.length % idColors.length];
             room.players.push({ id: socket.id, name: data.name, score: 0, color: pColor });
             socket.join(data.roomId);
             socket.emit('joined_room', { roomId: data.roomId, isOwner: false });
+            // 若遊戲進行中，告知新玩家目前是觀戰狀態
+            if (room.status !== 'LOBBY') {
+                socket.emit('chat_message', { sender: '系統', text: '你已加入進行中的遊戲，本局以觀戰模式參與，下局起正式計分！', color: '#888' });
+            }
             updateRoomPlayers(data.roomId);
             io.emit('room_list', getPublicRooms());
         } else {
-            socket.emit('error_msg', '房間無法加入（可能已滿員或遊戲已開始）');
+            socket.emit('error_msg', '房間無法加入（已滿 5 人）');
         }
     });
 
@@ -146,16 +150,53 @@ function updateRoomPlayers(roomId) {
 function handleExit(socket, roomId) {
     const room = rooms[roomId];
     if (!room) return;
+
+    const wasDrawer = room.currentDrawerId === socket.id;
     room.players = room.players.filter(p => p.id !== socket.id);
     socket.leave(roomId);
 
     if (room.players.length === 0) {
+        // 房間已空，直接刪除
         clearInterval(room.interval);
+        clearTimeout(room.pickTimeout);
         delete rooms[roomId];
-    } else if (room.owner === socket.id) {
+        io.emit('room_list', getPublicRooms());
+        return;
+    }
+
+    // 轉移房主
+    if (room.owner === socket.id) {
         room.owner = room.players[0].id;
         io.to(room.owner).emit('you_are_owner');
     }
+
+    // 遊戲進行中且人數掉到 1 人以下 → 中止遊戲
+    if (room.status !== 'LOBBY' && room.players.length < 2) {
+        clearInterval(room.interval);
+        clearTimeout(room.pickTimeout);
+        room.interval = null;
+        room.pickTimeout = null;
+        room.status = 'LOBBY';
+        room.currentWord = "";
+        room.currentDrawerId = null;
+        room.correctGuessers = [];
+        io.to(roomId).emit('game_aborted'); // 通知前端
+        io.to(roomId).emit('chat_message', { sender: '系統', text: '玩家人數不足，遊戲已中止，等待更多玩家加入。', color: 'orange' });
+        updateRoomPlayers(roomId);
+        io.emit('room_list', getPublicRooms());
+        return;
+    }
+
+    // 若出題者離開，且遊戲在進行中，跳過這回合
+    if (wasDrawer && room.status !== 'LOBBY') {
+        clearInterval(room.interval);
+        clearTimeout(room.pickTimeout);
+        room.interval = null;
+        room.pickTimeout = null;
+        io.to(roomId).emit('chat_message', { sender: '系統', text: '出題者已離開，跳過本回合。', color: 'orange' });
+        setTimeout(() => startNewRound(roomId), 2000);
+    }
+
     updateRoomPlayers(roomId);
     io.emit('room_list', getPublicRooms());
 }

@@ -640,7 +640,7 @@
                         <div class="room-meta">${r.count}/5 人 · ${r.status === 'LOBBY' ? '等待中' : '遊戲中'}</div>
                         <div class="room-count-bar"><div class="room-count-fill" style="width:${r.count/5*100}%"></div></div>
                     </div>
-                    <button class="btn btn-primary btn-sm" onclick="joinRoom('${r.id}')" ${r.count>=5||r.status!=='LOBBY'?'disabled':''}>加入</button>
+                    <button class="btn btn-primary btn-sm" onclick="joinRoom('${r.id}')" ${r.count>=5?'disabled':''}>加入</button>
                 </div>
             `).join('');
         });
@@ -729,6 +729,20 @@
             m.appendChild(div);
             while (m.childElementCount > 15) m.removeChild(m.firstElementChild);
             m.scrollTop = m.scrollHeight;
+        });
+
+        // 人數不足，遊戲中止
+        socket.on('game_aborted', () => {
+            document.getElementById('result-overlay').style.display = 'none';
+            document.getElementById('word-overlay').style.display = 'none';
+            document.getElementById('tools').style.display = 'none';
+            document.getElementById('status-text').innerText = '⚠️ 人數不足，遊戲中止';
+            document.getElementById('timer-text').innerText = '--';
+            document.getElementById('timer-text').classList.remove('urgent');
+            isDrawer = false;
+            if (isOwner) document.getElementById('host-start-btn').style.display = 'inline-flex';
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
         });
 
         socket.on('game_over', (winners) => {
