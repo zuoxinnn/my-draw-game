@@ -15,42 +15,67 @@ let rooms = {}; // 房間資料庫
 app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'));
 
 io.on('connection', (socket) => {
-    socket.emit('room_list', getPublicRooms());
+    socket.emit('room_list', getAllRooms());
 
     // 創造房間
     socket.on('create_room', (data) => {
         const roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
+        const roomName = (data.roomName || '').trim() || `${data.name} 的房間`;
+
+        // 驗證私人房密碼必須是 4 位數字
+        if (data.isPrivate) {
+            if (!/^\d{4}$/.test(data.password)) {
+                socket.emit('error_msg', '密碼必須是 4 位數字');
+                return;
+            }
+        }
+
         rooms[roomId] = {
-            id: roomId, owner: socket.id,
+            id: roomId,
+            roomName,
+            owner: socket.id,
             players: [{ id: socket.id, name: data.name, score: 0, color: idColors[0] }],
             status: 'LOBBY', roundCount: 0, maxRounds: 10,
             currentWord: "", currentDrawerId: null, drawerIndex: -1,
             correctGuessers: [], timer: 0, interval: null, pickTimeout: null,
-            maxPlayers: 8
+            maxPlayers: 8,
+            isPrivate: !!data.isPrivate,
+            password: data.isPrivate ? String(data.password) : null
         };
         socket.join(roomId);
-        socket.emit('joined_room', { roomId, isOwner: true });
+        socket.emit('joined_room', { roomId, roomName, isOwner: true, isPrivate: !!data.isPrivate });
         updateRoomPlayers(roomId);
-        io.emit('room_list', getPublicRooms());
+        io.emit('room_list', getAllRooms());
     });
 
     // 加入房間（遊戲進行中也可加入，但分數從 0 開始）
     socket.on('join_room', (data) => {
         const room = rooms[data.roomId];
-        if (room && room.players.length < room.maxPlayers) {
-            const pColor = idColors[room.players.length % idColors.length];
-            room.players.push({ id: socket.id, name: data.name, score: 0, color: pColor });
-            socket.join(data.roomId);
-            socket.emit('joined_room', { roomId: data.roomId, isOwner: false });
-            // 若遊戲進行中，告知新玩家目前是觀戰狀態
-            if (room.status !== 'LOBBY') {
-                socket.emit('chat_message', { sender: '系統', text: '你已加入進行中的遊戲，本局以觀戰模式參與，下局起正式計分！', color: '#888' });
-            }
-            updateRoomPlayers(data.roomId);
-            io.emit('room_list', getPublicRooms());
-        } else {
-            socket.emit('error_msg', '房間無法加入（已滿 8 人）');
+        if (!room) {
+            socket.emit('error_msg', '找不到此房間，請確認代碼是否正確');
+            return;
         }
+        if (room.players.length >= room.maxPlayers) {
+            socket.emit('error_msg', '房間已滿（最多 8 人）');
+            return;
+        }
+        // 私人房驗證密碼
+        if (room.isPrivate) {
+            if (String(data.password) !== room.password) {
+                socket.emit('error_msg', '密碼錯誤，請再試一次');
+                return;
+            }
+        }
+
+        const pColor = idColors[room.players.length % idColors.length];
+        room.players.push({ id: socket.id, name: data.name, score: 0, color: pColor });
+        socket.join(data.roomId);
+        socket.emit('joined_room', { roomId: data.roomId, roomName: room.roomName, isOwner: false, isPrivate: room.isPrivate });
+        if (room.status !== 'LOBBY') {
+            socket.emit('chat_message', { sender: '系統', text: '你已加入進行中的遊戲，本局以觀戰模式參與，下局起正式計分！', color: '#888' });
+        }
+        updateRoomPlayers(data.roomId);
+        io.emit('room_list', getAllRooms());
     });
 
     // 房主控制
@@ -72,7 +97,7 @@ io.on('connection', (socket) => {
             room.players.forEach(p => p.score = 0);
             updateRoomPlayers(roomId);
             startNewRound(roomId);
-            io.emit('room_list', getPublicRooms());
+            io.emit('room_list', getAllRooms());
         }
     });
 
@@ -147,8 +172,16 @@ io.on('connection', (socket) => {
 });
 
 // --- 輔助函數 ---
-function getPublicRooms() {
-    return Object.values(rooms).map(r => ({ id: r.id, count: r.players.length, max: r.maxPlayers, status: r.status }));
+function getAllRooms() {
+    // 回傳所有房間，私人房不包含密碼
+    return Object.values(rooms).map(r => ({
+        id: r.id,
+        roomName: r.roomName,
+        count: r.players.length,
+        max: r.maxPlayers,
+        status: r.status,
+        isPrivate: r.isPrivate
+    }));
 }
 
 function updateRoomPlayers(roomId) {
@@ -168,7 +201,7 @@ function handleExit(socket, roomId) {
         clearInterval(room.interval);
         clearTimeout(room.pickTimeout);
         delete rooms[roomId];
-        io.emit('room_list', getPublicRooms());
+        io.emit('room_list', getAllRooms());
         return;
     }
 
@@ -191,7 +224,7 @@ function handleExit(socket, roomId) {
         io.to(roomId).emit('game_aborted'); // 通知前端
         io.to(roomId).emit('chat_message', { sender: '系統', text: '玩家人數不足，遊戲已中止，等待更多玩家加入。', color: 'orange' });
         updateRoomPlayers(roomId);
-        io.emit('room_list', getPublicRooms());
+        io.emit('room_list', getAllRooms());
         return;
     }
 
@@ -206,7 +239,7 @@ function handleExit(socket, roomId) {
     }
 
     updateRoomPlayers(roomId);
-    io.emit('room_list', getPublicRooms());
+    io.emit('room_list', getAllRooms());
 }
 
 function startNewRound(roomId) {
@@ -305,7 +338,7 @@ function endGame(roomId) {
     io.to(roomId).emit('game_over', winners);
 
     // 立即更新大廳列表，讓其他人看到這間房現在可以進了
-    io.emit('room_list', getPublicRooms());
+    io.emit('room_list', getAllRooms());
 }
 
 const PORT = process.env.PORT || 3000;

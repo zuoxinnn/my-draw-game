@@ -76,6 +76,37 @@
         }
         #username:focus { border-color: var(--red); box-shadow: 0 0 0 4px rgba(204,0,0,0.1); }
 
+        #room-name-input {
+            padding: 12px 18px;
+            width: 100%;
+            border-radius: 12px;
+            border: 2px solid #e0e0e0;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+            -webkit-user-select: auto;
+            user-select: auto;
+        }
+        #room-name-input:focus { border-color: var(--red); box-shadow: 0 0 0 4px rgba(204,0,0,0.1); }
+
+        #room-password {
+            padding: 12px 18px;
+            width: 100%;
+            border-radius: 12px;
+            border: 2px solid #e0e0e0;
+            font-size: 20px;
+            font-family: inherit;
+            letter-spacing: 6px;
+            text-align: center;
+            outline: none;
+            transition: border-color 0.2s;
+            -webkit-user-select: auto;
+            user-select: auto;
+        }
+        #room-password:focus { border-color: var(--red); }
+        #room-password::placeholder { letter-spacing: 2px; font-size: 14px; }
+
         .lobby-divider {
             margin: 24px 0;
             border: none;
@@ -397,6 +428,128 @@
 
         .result-actions { display: flex; gap: 10px; margin-top: 8px; }
 
+        /* ===== 房間類型切換 ===== */
+        .room-type-toggle {
+            display: flex;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 14px;
+        }
+        .room-type-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: #f8f8f8;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #888;
+        }
+        .room-type-btn.active {
+            background: var(--red);
+            color: white;
+        }
+
+        #password-section {
+            display: none;
+            margin-bottom: 14px;
+        }
+        #room-password {
+            padding: 12px 18px;
+            width: 100%;
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+            font-size: 20px;
+            font-family: inherit;
+            letter-spacing: 6px;
+            text-align: center;
+            outline: none;
+            transition: border-color 0.2s;
+            -webkit-user-select: auto;
+            user-select: auto;
+        }
+        #room-password:focus { border-color: var(--red); }
+        #room-password::placeholder { letter-spacing: 2px; font-size: 14px; }
+
+        /* 錯誤提示 */
+        .error-msg {
+            background: #fff5f5;
+            color: var(--red);
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 10px;
+            display: none;
+        }
+
+        /* 私人房間提示條（遊戲頂部顯示房名） */
+        #private-room-banner {
+            display: none;
+            background: rgba(255,215,0,0.15);
+            border: 1px solid rgba(255,215,0,0.4);
+            border-radius: 10px;
+            padding: 8px 16px;
+            color: var(--gold);
+            font-size: 13px;
+            font-weight: 700;
+            text-align: center;
+            width: 100%;
+            max-width: 1020px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            user-select: all;
+            -webkit-user-select: all;
+        }
+        #private-room-banner:hover { background: rgba(255,215,0,0.25); }
+
+        /* 密碼彈窗 */
+        #pw-modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 500;
+            justify-content: center;
+            align-items: center;
+        }
+        #pw-modal-backdrop.show { display: flex; }
+        #pw-modal {
+            background: white;
+            border-radius: 20px;
+            padding: 32px 28px;
+            width: 320px;
+            max-width: 90vw;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            animation: bounceIn 0.3s ease;
+        }
+        #pw-modal h3 { font-size: 18px; margin-bottom: 6px; color: #222; }
+        #pw-modal .pw-room-name { font-size: 13px; color: #888; margin-bottom: 20px; }
+        #pw-modal-input {
+            width: 100%;
+            padding: 14px;
+            font-size: 28px;
+            letter-spacing: 10px;
+            text-align: center;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-family: inherit;
+            outline: none;
+            margin-bottom: 16px;
+            transition: border-color 0.2s;
+            -webkit-user-select: auto;
+            user-select: auto;
+        }
+        #pw-modal-input:focus { border-color: var(--red); }
+        #pw-modal-error { color: var(--red); font-size: 13px; font-weight: 600; min-height: 18px; margin-bottom: 12px; }
+        .pw-modal-btns { display: flex; gap: 8px; }
+        .pw-modal-btns .btn { flex: 1; justify-content: center; }
+
         /* ===== 手機版面 ===== */
         @media (max-width: 768px) {
             body { padding: 8px; }
@@ -467,21 +620,53 @@
 </head>
 <body>
 
+    <!-- 密碼彈窗 -->
+    <div id="pw-modal-backdrop">
+        <div id="pw-modal">
+            <h3>🔒 私人房間</h3>
+            <div class="pw-room-name" id="pw-modal-room-name"></div>
+            <input type="number" id="pw-modal-input" placeholder="····" maxlength="4"
+                   oninput="this.value=this.value.slice(0,4)" onkeypress="if(event.key==='Enter')confirmPassword()">
+            <div id="pw-modal-error"></div>
+            <div class="pw-modal-btns">
+                <button class="btn btn-ghost" style="background:#f0f0f0; color:#555;" onclick="closePasswordModal()">取消</button>
+                <button class="btn btn-primary" onclick="confirmPassword()">🔑 進入</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 大廳 -->
     <div id="lobby-view">
         <div class="lobby-logo">🎨</div>
         <div class="lobby-title">寶可夢你畫我猜</div>
         <div class="lobby-subtitle">2026 版 · WafflePancake</div>
 
-        <input type="text" id="username" placeholder="輸入你的暱稱" style="margin-bottom: 16px;">
-        <br>
+        <input type="text" id="username" placeholder="輸入你的暱稱" style="margin-bottom: 12px;">
+
+        <!-- 房間名稱 -->
+        <input type="text" id="room-name-input" placeholder="房間名稱（選填）" style="margin-bottom: 12px;" maxlength="20">
+
+        <!-- 公開 / 私人切換 -->
+        <div class="room-type-toggle">
+            <button class="room-type-btn active" id="btn-public" onclick="setRoomType('public')">🌐 公開房</button>
+            <button class="room-type-btn" id="btn-private" onclick="setRoomType('private')">🔒 私人房</button>
+        </div>
+
+        <!-- 密碼輸入（私人房才顯示） -->
+        <div id="password-section">
+            <input type="number" id="room-password" placeholder="設定 4 位數密碼" maxlength="4"
+                   oninput="this.value=this.value.slice(0,4)" style="margin-bottom: 12px;">
+        </div>
+
         <button class="btn btn-primary" onclick="createRoom()" style="width:100%; justify-content:center; font-size:16px; padding:14px;">
             🏠 創造房間
         </button>
 
+        <div id="lobby-error" class="error-msg"></div>
+
         <hr class="lobby-divider">
 
-        <div class="lobby-rooms-title">加入現有房間</div>
+        <div class="lobby-rooms-title">所有房間</div>
         <div id="room-list">
             <div id="room-list-empty">讀取中...</div>
         </div>
@@ -489,6 +674,9 @@
 
     <!-- 遊戲視圖 -->
     <div id="game-view" style="display:none; width:100%; display:none; flex-direction:column; align-items:center;">
+
+        <!-- 私人房提示條（房主可看到密碼，點擊可複製） -->
+        <div id="private-room-banner" onclick="copyRoomInfo()" title="點擊複製分享資訊"></div>
 
         <div id="top-bar">
             <span id="room-display-id">房間: ---</span>
@@ -565,6 +753,65 @@
 
         let currentRoomId = null, isOwner = false, isDrawer = false;
         let drawing = false, currentColor = 'black', currentMode = 'pen';
+        let currentRoomIsPrivate = false;
+        let selectedRoomType = 'public'; // 'public' or 'private'
+        let pendingJoinRoomId = null; // 等待輸入密碼的房間 ID
+
+        function setRoomType(type) {
+            selectedRoomType = type;
+            document.getElementById('btn-public').classList.toggle('active', type === 'public');
+            document.getElementById('btn-private').classList.toggle('active', type === 'private');
+            document.getElementById('password-section').style.display = type === 'private' ? 'block' : 'none';
+        }
+
+        function showLobbyError(msg) {
+            const el = document.getElementById('lobby-error');
+            el.textContent = msg;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 4000);
+        }
+
+        // 密碼彈窗
+        function openPasswordModal(roomId, roomName) {
+            pendingJoinRoomId = roomId;
+            document.getElementById('pw-modal-room-name').textContent = roomName;
+            document.getElementById('pw-modal-input').value = '';
+            document.getElementById('pw-modal-error').textContent = '';
+            document.getElementById('pw-modal-backdrop').classList.add('show');
+            setTimeout(() => document.getElementById('pw-modal-input').focus(), 100);
+        }
+
+        function closePasswordModal() {
+            pendingJoinRoomId = null;
+            document.getElementById('pw-modal-backdrop').classList.remove('show');
+        }
+
+        function confirmPassword() {
+            const pw = document.getElementById('pw-modal-input').value.trim();
+            if (!/^\d{4}$/.test(pw)) {
+                document.getElementById('pw-modal-error').textContent = '請輸入 4 位數字密碼';
+                return;
+            }
+            const name = document.getElementById('username').value.trim();
+            if (!name) { closePasswordModal(); showLobbyError('請先輸入暱稱'); return; }
+            socket.emit('join_room', { roomId: pendingJoinRoomId, name, password: pw });
+        }
+
+        // 點擊彈窗背景關閉
+        document.getElementById('pw-modal-backdrop').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('pw-modal-backdrop')) closePasswordModal();
+        });
+
+        function copyRoomInfo() {
+            const text = document.getElementById('private-room-banner').dataset.shareText;
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(() => {
+                const banner = document.getElementById('private-room-banner');
+                const orig = banner.textContent;
+                banner.textContent = '✅ 已複製到剪貼簿！';
+                setTimeout(() => { banner.textContent = orig; }, 2000);
+            });
+        }
 
         // ===== Undo 機制 =====
         const undoStack = [];
@@ -717,13 +964,26 @@
         // --- 房間邏輯 ---
         function createRoom() {
             const name = document.getElementById('username').value.trim();
-            if (name) socket.emit('create_room', { name });
+            if (!name) { showLobbyError('請先輸入暱稱'); return; }
+            const roomName = document.getElementById('room-name-input').value.trim();
+
+            if (selectedRoomType === 'private') {
+                const pw = document.getElementById('room-password').value;
+                if (!/^\d{4}$/.test(pw)) { showLobbyError('私人房密碼必須是 4 位數字'); return; }
+                socket.emit('create_room', { name, roomName, isPrivate: true, password: pw });
+            } else {
+                socket.emit('create_room', { name, roomName, isPrivate: false });
+            }
         }
 
-        function joinRoom(id) {
+        function joinRoom(roomId, isPrivate, roomName) {
             const name = document.getElementById('username').value.trim();
-            if (name) socket.emit('join_room', { roomId: id, name });
-            else alert('請先輸入暱稱');
+            if (!name) { showLobbyError('請先輸入暱稱'); return; }
+            if (isPrivate) {
+                openPasswordModal(roomId, roomName);
+            } else {
+                socket.emit('join_room', { roomId, name, password: null });
+            }
         }
 
         socket.on('room_list', (rooms) => {
@@ -732,26 +992,70 @@
                 container.innerHTML = '<div id="room-list-empty">目前沒有開放的房間</div>';
                 return;
             }
-            container.innerHTML = rooms.map(r => `
+            container.innerHTML = rooms.map(r => {
+                const isFull = r.count >= r.max;
+                const lockIcon = r.isPrivate ? '🔒 ' : '🏠 ';
+                const statusText = r.status === 'LOBBY' ? '等待中' : '遊戲中';
+                const privateTag = r.isPrivate
+                    ? '<span style="font-size:11px; background:#fff3cd; color:#856404; padding:1px 7px; border-radius:20px; font-weight:700; border:1px solid #ffd700; margin-left:6px;">私人</span>'
+                    : '';
+                const roomDisplayName = r.roomName || r.id;
+                return `
                 <div class="room-item">
                     <div class="room-info">
-                        <div class="room-name">🏠 ${r.id}</div>
-                        <div class="room-meta">${r.count}/${r.max} 人 · ${r.status === 'LOBBY' ? '等待中' : '遊戲中'}</div>
+                        <div class="room-name">${lockIcon}${roomDisplayName}${privateTag}</div>
+                        <div class="room-meta">${r.count}/${r.max} 人 · ${statusText}</div>
                         <div class="room-count-bar"><div class="room-count-fill" style="width:${r.count/r.max*100}%"></div></div>
                     </div>
-                    <button class="btn btn-primary btn-sm" onclick="joinRoom('${r.id}')" ${r.count>=r.max?'disabled':''}>加入</button>
-                </div>
-            `).join('');
+                    <button class="btn btn-primary btn-sm"
+                        onclick="joinRoom('${r.id}', ${r.isPrivate}, '${roomDisplayName.replace(/'/g, "\\'")}')"
+                        ${isFull ? 'disabled' : ''}>
+                        ${r.isPrivate ? '🔑 加入' : '加入'}
+                    </button>
+                </div>`;
+            }).join('');
         });
 
         socket.on('joined_room', (data) => {
-            currentRoomId = data.roomId; isOwner = data.isOwner;
+            currentRoomId = data.roomId;
+            isOwner = data.isOwner;
+            currentRoomIsPrivate = data.isPrivate;
+
+            // 成功加入，關閉密碼彈窗
+            closePasswordModal();
+
             document.getElementById('lobby-view').style.display = 'none';
             document.getElementById('game-view').style.display = 'flex';
-            document.getElementById('room-display-id').innerText = `房間: ${data.roomId}`;
+
+            const displayName = data.roomName || data.roomId;
+            document.getElementById('room-display-id').innerText = data.isPrivate
+                ? `🔒 ${displayName}`
+                : `🏠 ${displayName}`;
             document.getElementById('host-start-btn').style.display = isOwner ? 'inline-flex' : 'none';
             document.getElementById('host-end-btn').style.display = isOwner ? 'inline-flex' : 'none';
             ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 私人房：房主才顯示密碼提示條（含密碼可複製）
+            const banner = document.getElementById('private-room-banner');
+            if (data.isPrivate && isOwner) {
+                const pw = document.getElementById('room-password').value || '????';
+                const shareText = `🔒 房間：${displayName}　代碼：${data.roomId}　密碼：${pw}`;
+                banner.textContent = `${shareText}　｜　點擊複製`;
+                banner.dataset.shareText = shareText;
+                banner.style.display = 'block';
+                banner.style.cursor = 'pointer';
+            } else {
+                banner.style.display = 'none';
+            }
+        });
+
+        socket.on('error_msg', (msg) => {
+            // 如果密碼彈窗開著，錯誤顯示在彈窗裡；否則顯示在大廳
+            if (pendingJoinRoomId) {
+                document.getElementById('pw-modal-error').textContent = msg;
+            } else {
+                showLobbyError(msg);
+            }
         });
 
         socket.on('you_are_owner', () => {
